@@ -10,10 +10,12 @@ import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
-import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 
 public class XposedHook implements IXposedHookLoadPackage {
+
+    // Kéo ảnh trực tiếp từ khu vực công cộng, bỏ qua phân quyền SharedPrefs
+    private static final String PUBLIC_FAKE_IMAGE = "/sdcard/Movies/origin.jpg";
 
     @Override
     public void handleLoadPackage(final LoadPackageParam lpparam) throws Throwable {
@@ -21,48 +23,27 @@ public class XposedHook implements IXposedHookLoadPackage {
             return;
         }
 
-        XposedBridge.log("[OmniVCam-Pro] Khởi động bẻ khóa camera cho app: " + lpparam.packageName);
+        XposedBridge.log("[OmniVCam] Đang ép luồng camera trực tiếp từ Movies cho: " + lpparam.packageName);
 
-        XposedHelpers.findAndHookMethod(Camera.class, "takePicture", 
-            Camera.ShutterCallback.class, 
-            Camera.PictureCallback.class, 
-            Camera.PictureCallback.class, 
-            Camera.PictureCallback.class, 
-            new XC_MethodHook() {
+        // Chặn luồng xử lý ảnh thô toàn diện
+        try {
+            XposedHelpers.findAndHookMethod(BitmapFactory.class, "decodeByteArray", byte[].class, int.class, int.class, BitmapFactory.Options.class, new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                    XposedBridge.log("[OmniVCam-Pro] Thao tác bấm máy chụp kích hoạt!");
-
-                    // 🚀 ĐỌC ĐƯỜNG DẪN ẢNH ĐỨC TỰ CHỌN TỪ GIAO DIỆN
-                    XSharedPreferences xPref = new XSharedPreferences("com.duc.vcam", "vcam_settings");
-                    xPref.makeWorldReadable();
-                    String customImagePath = xPref.getString("image_path", null);
-
-                    if (customImagePath != null) {
-                        File imgFile = new File(customImagePath);
-                        if (imgFile.exists()) {
-                            XposedBridge.log("[OmniVCam-Pro] Đang nạp đè tấm ảnh tự chọn: " + customImagePath);
-                            
-                            Bitmap bitmap = BitmapFactory.decodeFile(customImagePath);
-                            if (bitmap != null) {
-                                ByteArrayOutputStream stream = new ByteArrayOutputStream();
-                                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, stream);
-                                byte[] fakePhotoBytes = stream.toByteArray();
-
-                                if (param.args[3] != null) {
-                                    param.args[3] = new Camera.PictureCallback() {
-                                        @Override
-                                        public void onPictureTaken(byte[] data, Camera camera) {
-                                            ((Camera.PictureCallback) param.args[3]).onPictureTaken(fakePhotoBytes, camera);
-                                        }
-                                    };
-                                }
-                            }
+                    File imgFile = new File(PUBLIC_FAKE_IMAGE);
+                    if (imgFile.exists()) {
+                        Bitmap bitmap = BitmapFactory.decodeFile(PUBLIC_FAKE_IMAGE);
+                        if (bitmap != null) {
+                            ByteArrayOutputStream stream = new ByteArrayOutputStream();
+                            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream);
+                            param.args[0] = stream.toByteArray();
+                            XposedBridge.log("[OmniVCam] 🟢 ĐÃ TRÁO ẢNH THÀNH CÔNG TỪ THƯ MỤC MOVIES!");
                         }
-                    } else {
-                        XposedBridge.log("[OmniVCam-Pro] Đức chưa chọn tấm ảnh nào trong giao diện ứng dụng!");
                     }
                 }
-        });
+            });
+        } catch (Throwable t) {
+            XposedBridge.log("[OmniVCam] Lỗi chặn luồng: " + t.getMessage());
+        }
     }
 }
