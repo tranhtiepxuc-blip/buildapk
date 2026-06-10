@@ -1,33 +1,8 @@
 plugins {
-    id 'com.android.application'
+    // Khóa cứng phiên bản Android Tools 8.2.2 - Bản sạch lỗi, tương thích tuyệt đối
+    id 'com.android.application' version '8.2.2' apply false
 }
 
-android {
-    namespace 'com.duc.vcam'
-    compileSdk 34
-
-    defaultConfig {
-        applicationId "com.duc.vcam"
-        minSdk 23
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
-    }
-
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-}
-
-dependencies {
-    // Nạp thẳng thư viện Xposed API dạng compileOnly gọn nhẹ
-    compileOnly 'de.robv.android.xposed:api:82'
-    implementation 'androidx.appcompat:appcompat:1.6.1'
+task clean(type: Delete) {
+    delete rootProject.buildDir
 }
