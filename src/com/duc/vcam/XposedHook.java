@@ -14,7 +14,6 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 
 public class XposedHook implements IXposedHookLoadPackage {
 
-    // Kéo ảnh trực tiếp từ khu vực công cộng, bỏ qua phân quyền SharedPrefs
     private static final String PUBLIC_FAKE_IMAGE = "/sdcard/Movies/origin.jpg";
 
     @Override
@@ -23,9 +22,37 @@ public class XposedHook implements IXposedHookLoadPackage {
             return;
         }
 
-        XposedBridge.log("[OmniVCam] Đang ép luồng camera trực tiếp từ Movies cho: " + lpparam.packageName);
+        XposedBridge.log("[OmniVCam-AntiCameraX] Đang thiết lập lưới bọc bảo mật cho: " + lpparam.packageName);
 
-        // Chặn luồng xử lý ảnh thô toàn diện
+        // =========================================================================
+        // 🔥 ĐÒN CHÍ MẠNG 1: Hook thẳng vào lớp nội bộ của CameraX (Jetpack androidx)
+        // =========================================================================
+        try {
+            // Chặn ngay lớp quản lý mở camera bên trong ruột của thư viện CameraX
+            XposedHelpers.findAndHookMethod("androidx.camera.camera2.internal.Camera2CameraImpl", lpparam.classLoader, 
+                "openCaptureSession", new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                        XposedBridge.log("[OmniVCam] 🎯 BẮT TRÚNG LUỒNG: CameraX đang cố gắng mở Capture Session!");
+                    }
+            });
+
+            // Chặn hàm kích hoạt Driver CameraX ngầm
+            XposedHelpers.findAndHookMethod("androidx.camera.camera2.internal.compat.CameraDeviceCompatAndR", lpparam.classLoader,
+                "openCamera", String.class, java.util.concurrent.Executor.class, android.hardware.camera2.CameraDevice.StateCallback.class,
+                new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                        XposedBridge.log("[OmniVCam] 🎯 Đã tóm sống hàm openCamera ngầm của CameraX Jetpack!");
+                    }
+            });
+        } catch (Throwable t) {
+            XposedBridge.log("[OmniVCam] App không tích hợp CameraX hoặc dùng bản Jetpack custom: " + t.getMessage());
+        }
+
+        // =========================================================================
+        // 🔥 ĐÒN CHÍ MẠNG 2: Chốt chặn cuối tầng biến đổi mảng byte ảnh (BitmapFactory)
+        // =========================================================================
         try {
             XposedHelpers.findAndHookMethod(BitmapFactory.class, "decodeByteArray", byte[].class, int.class, int.class, BitmapFactory.Options.class, new XC_MethodHook() {
                 @Override
@@ -37,13 +64,13 @@ public class XposedHook implements IXposedHookLoadPackage {
                             ByteArrayOutputStream stream = new ByteArrayOutputStream();
                             bitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream);
                             param.args[0] = stream.toByteArray();
-                            XposedBridge.log("[OmniVCam] 🟢 ĐÃ TRÁO ẢNH THÀNH CÔNG TỪ THƯ MỤC MOVIES!");
+                            XposedBridge.log("[OmniVCam] 🟢 THÀNH CÔNG: Đã ép tráo mảng byte ảnh tĩnh từ Movies!");
                         }
                     }
                 }
             });
         } catch (Throwable t) {
-            XposedBridge.log("[OmniVCam] Lỗi chặn luồng: " + t.getMessage());
+            XposedBridge.log("[OmniVCam] Lỗi chốt chặn BitmapFactory: " + t.getMessage());
         }
     }
 }
