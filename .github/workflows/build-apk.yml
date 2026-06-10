@@ -13,7 +13,6 @@ jobs:
     - name: Checkout Source Code
       uses: actions/checkout@v4
 
-    # Thiết lập môi trường chạy máy ảo Java chuẩn để biên dịch Android
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
@@ -21,24 +20,23 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    # Cấp đặc quyền thực thi tối cao cho trình quản lý Gradle
     - name: Grant Execute Permission for Gradlew
       run: chmod +x gradlew
       continue-on-error: true
 
-    # Đúc file APK bằng kịch bản tự sinh lệnh nếu chưa có file wrapper gốc
+    # 🚀 FIX QUAN TRỌNG: Gọi đích danh task đóng gói của thư mục con :app để máy ảo không bị lạc đường
     - name: Compile and Build Release APK
       run: |
         if [ ! -f "gradlew" ]; then
           gradle wrapper
           chmod +x gradlew
         fi
-        ./gradlew assembleRelease
+        ./gradlew :app:assembleRelease
 
     - name: Collect Finished APK
       run: |
         mkdir -p Output
-        cp app/build/outputs/apk/release/app-release-unsigned.apk Output/Omni_VCam_Xposed.apk
+        cp app/build/outputs/apk/release/app-release-unsigned.apk Output/Omni_VCam_Xposed.apk || cp app/build/outputs/apk/release/*.apk Output/Omni_VCam_Xposed.apk
         echo "🟢 Biên dịch thành công! File APK đã nằm trong thư mục Output."
 
     - name: Upload Finished APK to Artifacts
