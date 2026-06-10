@@ -3,6 +3,8 @@ package com.duc.vcam;
 import android.app.Activity;
 import android.content.Intent;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -14,16 +16,13 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 public class MainActivity extends Activity {
     private static final int PICK_IMAGE = 1;
     private TextView txtStatus;
 
-    // 🚀 ĐÃ FIX CHÍ MẠNG: Đổi tên về hàm onCreate chuẩn của Android Activity
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -34,11 +33,11 @@ public class MainActivity extends Activity {
         layout.setPadding(50, 50, 50, 50);
 
         Button btnPick = new Button(this);
-        btnPick.setText("Bấm Để Chọn Ảnh Từ Thư Viện");
+        btnPick.setText("BẤM ĐỂ CHỌN ẢNH FAKE (TỰ ĐỘNG ÉP 960x720)");
         layout.addView(btnPick);
 
         txtStatus = new TextView(this);
-        txtStatus.setText("\nTrạng thái: Sẵn sàng.");
+        txtStatus.setText("\nTrạng thái: Sẵn sàng nạp ảnh.");
         txtStatus.setGravity(Gravity.CENTER);
         layout.addView(txtStatus);
 
@@ -67,31 +66,64 @@ public class MainActivity extends Activity {
                     String picturePath = cursor.getString(columnIndex);
                     cursor.close();
 
-                    // Copy đè thẳng tấm ảnh được chọn vào thư mục công cộng Movies
-                    File src = new File(picturePath);
-                    File destDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "");
-                    if (!destDir.exists()) destDir.mkdirs();
-                    File dest = new File(destDir, "origin.jpg");
+                    Bitmap originalBitmap = BitmapFactory.decodeFile(picturePath);
+                    Bitmap scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, 960, 720, true);
 
-                    copyFile(src, dest);
-                    txtStatus.setText("\n🟢 Đã đồng bộ ảnh fake vào hệ thống công cộng!");
-                    Toast.makeText(this, "Chọn ảnh thành công!", Toast.LENGTH_SHORT).show();
+                    File dir1 = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "");
+                    File dir2 = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), "Camera1");
+                    File dir3 = new File("/sdcard/Android/data/com.gfd.fms.binhthuan/files/Camera1");
+
+                    if (!dir1.exists()) dir1.mkdirs();
+                    if (!dir2.exists()) dir2.mkdirs();
+                    if (!dir3.exists()) dir3.mkdirs();
+
+                    saveAsBmp(scaledBitmap, new File(dir1, "origin.jpg"));
+                    saveAsBmp(scaledBitmap, new File(dir2, "1000.bmp"));
+                    saveAsBmp(scaledBitmap, new File(dir3, "1000.bmp"));
+
+                    txtStatus.setText("\n🟢 ĐÃ ĐỒNG BỘ HOÀN TOÀN!\nẢnh đã được chuyển thành BMP và rải vào tất cả thư mục chốt chặn!");
+                    Toast.makeText(this, "Đã đồng bộ ảnh fake thành công!", Toast.LENGTH_LONG).show();
                 }
             } catch (Exception e) {
-                txtStatus.setText("\n🔴 Lỗi: Chưa cấp quyền truy cập bộ nhớ cho App!");
+                txtStatus.setText("\n🔴 Lỗi: Chưa cấp quyền bộ nhớ hoặc file lỗi: " + e.getMessage());
             }
         }
     }
 
-    private void copyFile(File source, File dest) throws Exception {
-        InputStream is = new FileInputStream(source);
-        OutputStream os = new FileOutputStream(dest);
-        byte[] buffer = new byte[1024];
-        int length;
-        while ((length = is.read(buffer)) > 0) {
-            os.write(buffer, 0, length);
+    private void saveAsBmp(Bitmap bitmap, File file) throws Exception {
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        int[] pixels = new int[width * height];
+        bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
+
+        byte[] rgb = new byte[width * height * 3];
+        for (int i = 0; i < pixels.length; i++) {
+            int row = height - 1 - (i / width);
+            int col = i % width;
+            int index = (row * width + col) * 3;
+            int p = pixels[i];
+            rgb[index] = (byte) (p & 0xFF);          
+            rgb[index + 1] = (byte) ((p >> 8) & 0xFF);  
+            rgb[index + 2] = (byte) ((p >> 16) & 0xFF); 
         }
-        is.close();
-        os.close();
+
+        ByteBuffer buffer = ByteBuffer.allocate(54 + rgb.length);
+        buffer.put((byte) 'B'); buffer.put((byte) 'M');
+        buffer.putInt(54 + rgb.length);
+        buffer.putShort((short) 0); buffer.putShort((short) 0);
+        buffer.putInt(54);
+        buffer.putInt(40);
+        buffer.putInt(width);
+        buffer.putInt(height);
+        buffer.putShort((short) 1);
+        buffer.putShort((short) 24);
+        buffer.putInt(0);
+        buffer.putInt(rgb.length);
+        buffer.putInt(0); buffer.putInt(0); buffer.putInt(0); buffer.putInt(0);
+        buffer.put(rgb);
+
+        FileOutputStream fos = new FileOutputStream(file);
+        fos.write(buffer.array());
+        fos.close();
     }
 }
