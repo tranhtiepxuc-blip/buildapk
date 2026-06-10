@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:label="Omni VCam Xposed"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AppCompat">
+
+        <!-- 🚀 ĐIỀU KIỆN QUAN TRỌNG: Khai báo với ứng dụng LSPosed đây là Module hệ thống -->
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+        <meta-data
+            android:name="xposeddescription"
+            android:value="Giả lập và tráo đổi dữ liệu Camera gốc bằng file video fake.mp4 bên trong máy ảo Android." />
+        <meta-data
+            android:name="xposedminversion"
+            android:value="82" />
+    </application>
+</manifest>
