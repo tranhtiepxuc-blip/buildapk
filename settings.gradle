@@ -4,8 +4,8 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
     }
-    // 🚀 FIX CHÍ MẠNG: Khai báo tập trung phiên bản Android Build Tools tương thích Gradle 9.x
     plugins {
+        // Cố định bản Android Plugin hoạt động mượt mà, chống tự đột biến cấu trúc
         id 'com.android.application' version '8.2.2'
     }
 }
@@ -14,7 +14,6 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://api.涼風.tw/maven' }
     }
 }
 rootProject.name = "VCamModule"
