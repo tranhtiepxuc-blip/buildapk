@@ -1,0 +1,18 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        // Kho lưu trữ đặc thù để máy ảo tải thư viện API Xposed bẻ khóa hệ thống
+        maven { url 'https://api.涼風.tw/maven' }
+    }
+}
+rootProject.name = "VCamModule"
+include ':app'
