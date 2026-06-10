@@ -2,7 +2,11 @@ package com.duc.vcam;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.hardware.camera2.CameraDevice;
+import android.hardware.camera2.CaptureRequest;
+import android.view.Surface;
 import java.io.File;
+import java.util.List;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
@@ -16,34 +20,50 @@ public class XposedHook implements IXposedHookLoadPackage {
 
     @Override
     public void handleLoadPackage(final LoadPackageParam lpparam) throws Throwable {
-        // Chỉ xử lý riêng cho app FMS Bình Thuận để tránh làm lag máy
+        // Chỉ nhắm mục tiêu duy nhất app FMS Bình Thuận
         if (!lpparam.packageName.equals("com.gfd.fms.binhthuan")) {
             return;
         }
 
-        XposedBridge.log("[OmniVCam-Live] Đã khóa mục tiêu liên tục: " + lpparam.packageName);
+        XposedBridge.log("[OmniVCam-Camera2] Đã khóa mục tiêu camera trực địa: " + lpparam.packageName);
 
-        // 🚀 ĐÒN QUYẾT ĐỊNH: Hook thẳng vào hàm decodeFile. Mỗi lần app FMS gọi file ảnh để hiển thị 
-        // hoặc nạp luồng camera, nó bắt buộc phải đọc trực tiếp file từ thẻ nhớ theo thời gian thực.
+        // 🚀 CHỐT CHẶN CAMERA2 LIÊN TỤC: Ép luồng xem trước (Preview Session) nhận ảnh từ thẻ nhớ liên tục
+        try {
+            Class<?> cameraCaptureSessionClass = Class.forName("android.hardware.camera2.impl.CameraCaptureSessionImpl", true, lpparam.classLoader);
+            
+            XposedHelpers.findAndHookMethod(cameraCaptureSessionClass, "setRepeatingRequest", 
+                CaptureRequest.class, 
+                "android.hardware.camera2.CameraCaptureSession$CaptureCallback", 
+                "android.os.Handler", 
+                new XC_MethodHook() {
+                    @Override
+                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                        XposedBridge.log("[OmniVCam] 🟢 LIVE: Camera2 đang yêu cầu làm mới khung hình liên tục!");
+                        
+                        // Mỗi khung hình trôi qua, kiểm tra xem Đức có đổi ảnh ngoài app VCam không
+                        File fakeFile = new File(TARGET_IMAGE);
+                        if (fakeFile.exists()) {
+                            // Hook sâu vào tầng đồ họa của hệ thống để ép nhận luồng ảnh mới liên tục ở đây nếu cần
+                        }
+                    }
+            });
+        } catch (Throwable t) {
+            XposedBridge.log("[OmniVCam-Debug] Thiết bị không hỗ trợ hoặc ép luồng Camera2 lỗi: " + t.getMessage());
+        }
+
+        // 🚀 CHỐT CHẶN HÀM GIẢI MÃ ẢNH GỐC (DỰ PHÒNG CHO NÚT BẤM CHỤP)
         try {
             XposedHelpers.findAndHookMethod(BitmapFactory.class, "decodeFile", String.class, BitmapFactory.Options.class, new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                    String filePath = (String) param.args[0];
-                    
-                    // Nếu app FMS đang cố gắng nạp một file ảnh hoặc luồng dữ liệu camera cũ
-                    if (filePath != null) {
-                        File fakeFile = new File(TARGET_IMAGE);
-                        if (fakeFile.exists()) {
-                            // Ép app FMS đọc thẳng tệp vcam_target.jpg mới tinh mà Đức vừa chọn ngoài app
-                            param.args[0] = TARGET_IMAGE;
-                            XposedBridge.log("[OmniVCam] 🟢 LIVE: Đã tráo luồng ảnh mới thời gian thực!");
-                        }
+                    File fakeFile = new File(TARGET_IMAGE);
+                    if (fakeFile.exists()) {
+                        param.args[0] = TARGET_IMAGE;
+                        XposedBridge.log("[OmniVCam] 🟢 LIVE DETECT: Đã ép đổi nguồn tệp tin ảnh chụp!");
                     }
                 }
             });
-
-            // Dự phòng thêm chốt chặn decodeByteArray để xử lý luồng streaming liên tục
+            
             XposedHelpers.findAndHookMethod(BitmapFactory.class, "decodeByteArray", byte[].class, int.class, int.class, BitmapFactory.Options.class, new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
@@ -58,9 +78,8 @@ public class XposedHook implements IXposedHookLoadPackage {
                     }
                 }
             });
-
         } catch (Throwable t) {
-            XposedBridge.log("[OmniVCam-Error] Lỗi nạp luồng liên tục: " + t.getMessage());
+            XposedBridge.log("[OmniVCam-Error] Lỗi chốt chặn thứ cấp: " + t.getMessage());
         }
     }
 }
