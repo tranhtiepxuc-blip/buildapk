@@ -1,33 +1,20 @@
-plugins {
-    // Chỉ cần gọi ID, phiên bản đã được quản lý an toàn ở file settings.gradle bên ngoài
-    id 'com.android.application'
-}
-
-android {
-    namespace 'com.duc.vcam'
-    compileSdk 34
-
-    defaultConfig {
-        applicationId "com.duc.vcam"
-        minSdk 23
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
     }
-
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+    plugins {
+        // Cố định bản Android Plugin hoạt động mượt mà, chống tự đột biến cấu trúc
+        id 'com.android.application' version '8.2.2'
     }
 }
-
-dependencies {
-    compileOnly 'de.robv.android.xposed:api:82'
-    implementation 'androidx.appcompat:appcompat:1.6.1'
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
 }
+rootProject.name = "VCamModule"
+include ':app'
