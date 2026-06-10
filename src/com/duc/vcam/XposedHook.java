@@ -18,6 +18,10 @@ public class XposedHook implements IXposedHookLoadPackage {
 
     @Override
     public void handleLoadPackage(final LoadPackageParam lpparam) throws Throwable {
+        if (lpparam == null || lpparam.packageName == null) {
+            return;
+        }
+
         if (lpparam.packageName.equals("android") || lpparam.packageName.equals("com.android.systemui") || lpparam.packageName.equals("com.duc.vcam")) {
             return;
         }
@@ -28,7 +32,7 @@ public class XposedHook implements IXposedHookLoadPackage {
         // 🔥 ĐÒN CHÍ MẠNG 1: Hook thẳng vào lớp nội bộ của CameraX (Jetpack androidx)
         // =========================================================================
         try {
-            // Chặn ngay lớp quản lý mở camera bên trong ruột của thư viện CameraX
+            // Sửa lỗi cú pháp: Gọi chính xác lpparam.classLoader chuẩn Android
             XposedHelpers.findAndHookMethod("androidx.camera.camera2.internal.Camera2CameraImpl", lpparam.classLoader, 
                 "openCaptureSession", new XC_MethodHook() {
                     @Override
@@ -37,7 +41,6 @@ public class XposedHook implements IXposedHookLoadPackage {
                     }
             });
 
-            // Chặn hàm kích hoạt Driver CameraX ngầm
             XposedHelpers.findAndHookMethod("androidx.camera.camera2.internal.compat.CameraDeviceCompatAndR", lpparam.classLoader,
                 "openCamera", String.class, java.util.concurrent.Executor.class, android.hardware.camera2.CameraDevice.StateCallback.class,
                 new XC_MethodHook() {
