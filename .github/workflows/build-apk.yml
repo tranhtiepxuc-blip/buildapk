@@ -18,25 +18,20 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
 
-    - name: Grant Execute Permission for Gradlew
-      run: chmod +x gradlew
-      continue-on-error: true
+    # 🚀 TUYỆT CHIÊU QUYẾT ĐỊNH: Ép máy ảo cài đặt thẳng Gradle bản 8.5 để triệt tiêu lỗi của bản 9.5
+    - name: Setup Gradle 8.5
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: 8.5
 
-    # 🚀 FIX QUAN TRỌNG: Gọi đích danh task đóng gói của thư mục con :app để máy ảo không bị lạc đường
     - name: Compile and Build Release APK
-      run: |
-        if [ ! -f "gradlew" ]; then
-          gradle wrapper
-          chmod +x gradlew
-        fi
-        ./gradlew :app:assembleRelease
+      run: gradle :app:assembleRelease
 
     - name: Collect Finished APK
       run: |
         mkdir -p Output
-        cp app/build/outputs/apk/release/app-release-unsigned.apk Output/Omni_VCam_Xposed.apk || cp app/build/outputs/apk/release/*.apk Output/Omni_VCam_Xposed.apk
+        cp app/build/outputs/apk/release/*.apk Output/Omni_VCam_Xposed.apk || cp app/build/outputs/apk/release/app-release-unsigned.apk Output/Omni_VCam_Xposed.apk
         echo "🟢 Biên dịch thành công! File APK đã nằm trong thư mục Output."
 
     - name: Upload Finished APK to Artifacts
