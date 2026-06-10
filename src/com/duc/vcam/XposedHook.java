@@ -18,6 +18,8 @@ import android.widget.Button;
 import android.widget.Toast;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
@@ -45,19 +47,28 @@ public class XposedHook implements IXposedHookLoadPackage {
 
         XposedBridge.log("[OmniVCam] Đã nạp Menu nổi lấy ảnh gốc vào FMS!");
 
-        // 🚀 HOOK VÒNG ĐỜI: Dùng phản xạ lôi Activity ẩn ra để bypass lỗi trình dịch
+        // 🚀 HOOK VÒNG ĐỜI: Dùng phản xạ thuần Java lấy "thisObject" để bypass hoàn toàn file JAR lỗi
         XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                // Đọc trực tiếp trường dữ liệu "thisObject" từ RAM bằng XposedHelpers
-                final Activity currentActivity = (Activity) XposedHelpers.getObjectField(param, "thisObject");
+                Activity currentActivity = null;
+                try {
+                    // Dùng phản xạ thô của Java, không phụ thuộc vào XposedHelpers
+                    Field thisObjectField = param.getClass().getField("thisObject");
+                    currentActivity = (Activity) thisObjectField.get(param);
+                } catch (Throwable e) {
+                    // Nếu getField thất bại, ép kiểu gián tiếp qua Object để b bịt mắt trình dịch
+                    Object rawParam = (Object) param;
+                    currentActivity = (Activity) XposedHelpers.getObjectField(rawParam, "thisObject");
+                }
+
                 if (floatingButton == null && currentActivity != null) {
                     createFloatingMenu(currentActivity);
                 }
             }
         });
 
-        // 🚀 XỬ LÝ KẾT QUẢ CHỌN ẢNH TỪ MENU NỔI: Lấy ảnh gốc hoàn toàn
+        // 🚀 XỬ LÝ KẾT QUẢ CHỌN ẢNH TỪ MENU NỔI
         XposedHelpers.findAndHookMethod(Activity.class, "onActivityResult", int.class, int.class, Intent.class, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
@@ -66,7 +77,15 @@ public class XposedHook implements IXposedHookLoadPackage {
                 Intent data = (Intent) param.args[2];
 
                 if (requestCode == 9999 && resultCode == Activity.RESULT_OK && data != null) {
-                    final Activity activity = (Activity) XposedHelpers.getObjectField(param, "thisObject");
+                    Activity activity = null;
+                    try {
+                        Field thisObjectField = param.getClass().getField("thisObject");
+                        activity = (Activity) thisObjectField.get(param);
+                    } catch (Throwable e) {
+                        Object rawParam = (Object) param;
+                        activity = (Activity) XposedHelpers.getObjectField(rawParam, "thisObject");
+                    }
+
                     if (activity == null) return;
                     
                     try {
@@ -77,14 +96,14 @@ public class XposedHook implements IXposedHookLoadPackage {
                         Matrix matrix = new Matrix();
                         matrix.postRotate(90);
                         
-                        // GIỮ NGUYÊN ẢNH GỐC: Tuyệt đối không bóp méo, không co giãn kích thước
+                        // GIỮ NGUYÊN ẢNH GỐC ĐỘ PHÂN GIẢI CAO
                         Bitmap finalBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
 
                         File targetFile = new File(TARGET_IMAGE);
                         if (targetFile.getParentFile() != null) targetFile.getParentFile().mkdirs();
                         
                         FileOutputStream fos = new FileOutputStream(targetFile);
-                        finalBitmap.compress(Bitmap.CompressFormat.JPEG, 95, fos); // Giữ nét căng 95% ảnh gốc
+                        finalBitmap.compress(Bitmap.CompressFormat.JPEG, 95, fos);
                         fos.close();
 
                         Toast.makeText(activity, "🟢 Đã nạp ẢNH GỐC thành công!", Toast.LENGTH_SHORT).show();
@@ -92,13 +111,19 @@ public class XposedHook implements IXposedHookLoadPackage {
                         Toast.makeText(activity, "🔴 Lỗi nạp ảnh gốc: " + e.getMessage(), Toast.LENGTH_LONG).show();
                     }
                     
-                    // Gọi gián tiếp hàm setResult bằng phản xạ động để trình biên dịch không bắt lỗi được
-                    XposedHelpers.callMethod(param, "setResult", new Object[]{null});
+                    // Bypass triệt để hàm setResult bằng cách gọi gián tiếp thông qua Object thô
+                    try {
+                        Method setResultMethod = param.getClass().getMethod("setResult", Object.class);
+                        setResultMethod.invoke(param, new Object[]{null});
+                    } catch (Throwable t) {
+                        Object rawParam = (Object) param;
+                        XposedHelpers.callMethod(rawParam, "setResult", new Object[]{null});
+                    }
                 }
             }
         });
 
-        // 🚀 THAY THẾ DRIVER CAMERA: Ép luồng xem trước nhận ảnh JPG từ bộ nhớ
+        // 🚀 THAY THẾ DRIVER CAMERA: Ép luồng nhận ảnh JPG từ bộ nhớ
         try {
             XposedHelpers.findAndHookMethod(BitmapFactory.class, "decodeFile", String.class, BitmapFactory.Options.class, new XC_MethodHook() {
                 @Override
@@ -121,7 +146,7 @@ public class XposedHook implements IXposedHookLoadPackage {
             
             floatingButton = new Button(activity);
             floatingButton.setText("ĐỔI ẢNH");
-            floatingButton.setBackgroundColor(Color.parseColor("#FF009688")); // Màu xanh ngọc thương hiệu
+            floatingButton.setBackgroundColor(Color.parseColor("#FF009688"));
             floatingButton.setTextColor(Color.WHITE);
             floatingButton.setPadding(20, 10, 20, 10);
             floatingButton.setTextSize(12);
