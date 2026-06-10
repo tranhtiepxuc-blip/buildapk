@@ -28,12 +28,21 @@ public class XposedHook implements IXposedHookLoadPackage {
 
         XposedBridge.log("[OmniVCam-AntiCameraX] Đang thiết lập lưới bọc bảo mật cho: " + lpparam.packageName);
 
+        // 🚀 GIẢI PHÁP SỬA LỖI CHÍ MẠNG: Lấy ClassLoader thông qua đối tượng Object của hệ thống để qua mặt trình dịch javac
+        Object objParam = (Object) lpparam;
+        ClassLoader appClassLoader = (ClassLoader) XposedHelpers.getObjectField(objParam, "classLoader");
+
+        if (appClassLoader == null) {
+            XposedBridge.log("[OmniVCam] Không thể lấy được ClassLoader của ứng dụng!");
+            return;
+        }
+
         // =========================================================================
         // 🔥 ĐÒN CHÍ MẠNG 1: Hook thẳng vào lớp nội bộ của CameraX (Jetpack androidx)
         // =========================================================================
         try {
-            // SỬA LỖI ĐỒNG BỘ: Chuyển chính xác thành lpparam.classLoader (Chữ L viết hoa)
-            XposedHelpers.findAndHookMethod("androidx.camera.camera2.internal.Camera2CameraImpl", lpparam.classLoader, 
+            // Sử dụng appClassLoader đã được ép kiểu an toàn
+            XposedHelpers.findAndHookMethod("androidx.camera.camera2.internal.Camera2CameraImpl", appClassLoader, 
                 "openCaptureSession", new XC_MethodHook() {
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
@@ -41,7 +50,7 @@ public class XposedHook implements IXposedHookLoadPackage {
                     }
             });
 
-            XposedHelpers.findAndHookMethod("androidx.camera.camera2.internal.compat.CameraDeviceCompatAndR", lpparam.classLoader,
+            XposedHelpers.findAndHookMethod("androidx.camera.camera2.internal.compat.CameraDeviceCompatAndR", appClassLoader,
                 "openCamera", String.class, java.util.concurrent.Executor.class, android.hardware.camera2.CameraDevice.StateCallback.class,
                 new XC_MethodHook() {
                     @Override
