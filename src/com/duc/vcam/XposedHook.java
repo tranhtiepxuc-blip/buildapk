@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.lang.reflect.Field;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
@@ -28,38 +29,47 @@ public class XposedHook implements IXposedHookLoadPackage {
 
         XposedBridge.log("[OmniVCam-AntiCameraX] Đang thiết lập lưới bọc bảo mật cho: " + lpparam.packageName);
 
-        // 🚀 GIẢI PHÁP SỬA LỖI CHÍ MẠNG: Lấy ClassLoader thông qua đối tượng Object của hệ thống để qua mặt trình dịch javac
-        Object objParam = (Object) lpparam;
-        ClassLoader appClassLoader = (ClassLoader) XposedHelpers.getObjectField(objParam, "classLoader");
+        // 🚀 DÙNG REFLECTION THUẦN CỦA JAVA: Lấy thẳng trường classLoader, không thèm qua XposedHelpers nữa!
+        ClassLoader appClassLoader = null;
+        try {
+            Field clField = lpparam.getClass().getDeclaredField("classLoader");
+            clField.setAccessible(true);
+            appClassLoader = (ClassLoader) clField.get(lpparam);
+        } catch (Throwable t) {
+            XposedBridge.log("[OmniVCam] Lỗi dùng Java Reflection lấy ClassLoader: " + t.getMessage());
+        }
 
         if (appClassLoader == null) {
-            XposedBridge.log("[OmniVCam] Không thể lấy được ClassLoader của ứng dụng!");
+            XposedBridge.log("[OmniVCam] Không lấy được ClassLoader, dừng luồng Hook nâng cao.");
             return;
         }
 
         // =========================================================================
-        // 🔥 ĐÒN CHÍ MẠNG 1: Hook thẳng vào lớp nội bộ của CameraX (Jetpack androidx)
+        // 🔥 ĐÒN CHÍ MẠNG 1: Hook thẳng vào lớp nội bộ của CameraX (Dùng Class.forName)
         // =========================================================================
         try {
-            // Sử dụng appClassLoader đã được ép kiểu an toàn
-            XposedHelpers.findAndHookMethod("androidx.camera.camera2.internal.Camera2CameraImpl", appClassLoader, 
-                "openCaptureSession", new XC_MethodHook() {
-                    @Override
-                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                        XposedBridge.log("[OmniVCam] 🎯 BẮT TRÚNG LUỒNG: CameraX đang cố gắng mở Capture Session!");
-                    }
-            });
-
-            XposedHelpers.findAndHookMethod("androidx.camera.camera2.internal.compat.CameraDeviceCompatAndR", appClassLoader,
-                "openCamera", String.class, java.util.concurrent.Executor.class, android.hardware.camera2.CameraDevice.StateCallback.class,
-                new XC_MethodHook() {
-                    @Override
-                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                        XposedBridge.log("[OmniVCam] 🎯 Đã tóm sống hàm openCamera ngầm của CameraX Jetpack!");
-                    }
+            // Sửa lỗi ép kiểu: Tìm đích danh Class đó thông qua appClassLoader trước
+            Class<?> classCamera2Impl = Class.forName("androidx.camera.camera2.internal.Camera2CameraImpl", true, appClassLoader);
+            XposedHelpers.findAndHookMethod(classCamera2Impl, "openCaptureSession", new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    XposedBridge.log("[OmniVCam] 🎯 BẮT TRÚNG LUỒNG: CameraX đang cố gắng mở Capture Session!");
+                }
             });
         } catch (Throwable t) {
-            XposedBridge.log("[OmniVCam] App không tích hợp CameraX hoặc dùng bản Jetpack custom: " + t.getMessage());
+            XposedBridge.log("[OmniVCam] Không tìm thấy lớp Camera2CameraImpl của CameraX");
+        }
+
+        try {
+            Class<?> classDeviceCompat = Class.forName("androidx.camera.camera2.internal.compat.CameraDeviceCompatAndR", true, appClassLoader);
+            XposedHelpers.findAndHookMethod(classDeviceCompat, "openCamera", String.class, java.util.concurrent.Executor.class, android.hardware.camera2.CameraDevice.StateCallback.class, new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    XposedBridge.log("[OmniVCam] 🎯 Đã tóm sống hàm openCamera ngầm của CameraX Jetpack!");
+                }
+            });
+        } catch (Throwable t) {
+            XposedBridge.log("[OmniVCam] Không tìm thấy lớp CameraDeviceCompatAndR của CameraX");
         }
 
         // =========================================================================
