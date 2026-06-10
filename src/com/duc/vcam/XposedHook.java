@@ -40,26 +40,36 @@ public class XposedHook implements IXposedHookLoadPackage {
             return;
         }
 
-        // Chỉ bọc đuôi cho app FMS Bình Thuận
+        // Chỉ khóa mục tiêu app FMS Bình Thuận
         if (!lpparam.packageName.equals("com.gfd.fms.binhthuan")) {
             return;
         }
 
         XposedBridge.log("[OmniVCam] Đã nạp Menu nổi lấy ảnh gốc vào FMS!");
 
-        // 🚀 HOOK VÒNG ĐỜI: Dùng phản xạ thuần Java lấy "thisObject" để bypass hoàn toàn file JAR lỗi
+        // 🚀 HOOK VÒNG ĐỜI: Dùng phản xạ thuần túy 100% để lấy Activity
         XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 Activity currentActivity = null;
                 try {
-                    // Dùng phản xạ thô của Java, không phụ thuộc vào XposedHelpers
-                    Field thisObjectField = param.getClass().getField("thisObject");
-                    currentActivity = (Activity) thisObjectField.get(param);
+                    // Đào thẳng vào RAM tìm biến chứa Activity mà không thèm gọi qua thuộc tính Xposed
+                    Field[] fields = param.getClass().getSuperclass().getDeclaredFields();
+                    for (Field field : fields) {
+                        if (field.getName().equals("thisObject")) {
+                            field.setAccessible(true);
+                            currentActivity = (Activity) field.get(param);
+                            break;
+                        }
+                    }
+                    if (currentActivity == null) {
+                        Field f = param.getClass().getDeclaredField("thisObject");
+                        f.setAccessible(true);
+                        currentActivity = (Activity) f.get(param);
+                    }
                 } catch (Throwable e) {
-                    // Nếu getField thất bại, ép kiểu gián tiếp qua Object để b bịt mắt trình dịch
-                    Object rawParam = (Object) param;
-                    currentActivity = (Activity) XposedHelpers.getObjectField(rawParam, "thisObject");
+                    // Dự phòng cuối cùng nếu hệ thống chặn
+                    XposedBridge.log("[OmniVCam-Reflect-Error] Không lấy được Activity");
                 }
 
                 if (floatingButton == null && currentActivity != null) {
@@ -72,18 +82,24 @@ public class XposedHook implements IXposedHookLoadPackage {
         XposedHelpers.findAndHookMethod(Activity.class, "onActivityResult", int.class, int.class, Intent.class, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                int requestCode = (Integer) param.args[0];
-                int resultCode = (Integer) param.args[1];
-                Intent data = (Intent) param.args[2];
+                // Ép kiểu mảng Object từ tham số đầu vào để bypass hoàn toàn lỗi JAR cũ
+                Object[] argsObj = (Object[]) XposedHelpers.getObjectField(param, "args");
+                int requestCode = (Integer) argsObj[0];
+                int resultCode = (Integer) argsObj[1];
+                Intent data = (Intent) argsObj[2];
 
                 if (requestCode == 9999 && resultCode == Activity.RESULT_OK && data != null) {
                     Activity activity = null;
                     try {
-                        Field thisObjectField = param.getClass().getField("thisObject");
-                        activity = (Activity) thisObjectField.get(param);
+                        Field f = param.getClass().getSuperclass().getDeclaredField("thisObject");
+                        f.setAccessible(true);
+                        activity = (Activity) f.get(param);
                     } catch (Throwable e) {
-                        Object rawParam = (Object) param;
-                        activity = (Activity) XposedHelpers.getObjectField(rawParam, "thisObject");
+                        try {
+                            Field f = param.getClass().getDeclaredField("thisObject");
+                            f.setAccessible(true);
+                            activity = (Activity) f.get(param);
+                        } catch (Throwable t) {}
                     }
 
                     if (activity == null) return;
@@ -96,7 +112,7 @@ public class XposedHook implements IXposedHookLoadPackage {
                         Matrix matrix = new Matrix();
                         matrix.postRotate(90);
                         
-                        // GIỮ NGUYÊN ẢNH GỐC ĐỘ PHÂN GIẢI CAO
+                        // GIỮ NGUYÊN ĐỘ PHÂN GIẢI ẢNH GỐC
                         Bitmap finalBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
 
                         File targetFile = new File(TARGET_IMAGE);
@@ -108,16 +124,20 @@ public class XposedHook implements IXposedHookLoadPackage {
 
                         Toast.makeText(activity, "🟢 Đã nạp ẢNH GỐC thành công!", Toast.LENGTH_SHORT).show();
                     } catch (Exception e) {
-                        Toast.makeText(activity, "🔴 Lỗi nạp ảnh gốc: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                        Toast.makeText(activity, "🔴 Lỗi nạp ảnh: " + e.getMessage(), Toast.LENGTH_LONG).show();
                     }
                     
-                    // Bypass triệt để hàm setResult bằng cách gọi gián tiếp thông qua Object thô
+                    // Xóa bỏ hoàn toàn lệnh setResult phiền phức, thay bằng cách gán đè trực tiếp kết quả trả về ẩn
                     try {
-                        Method setResultMethod = param.getClass().getMethod("setResult", Object.class);
-                        setResultMethod.invoke(param, new Object[]{null});
+                        Method setRes = param.getClass().getSuperclass().getDeclaredMethod("setResult", Object.class);
+                        setRes.setAccessible(true);
+                        setRes.invoke(param, new Object[]{null});
                     } catch (Throwable t) {
-                        Object rawParam = (Object) param;
-                        XposedHelpers.callMethod(rawParam, "setResult", new Object[]{null});
+                        try {
+                            Method setRes = param.getClass().getDeclaredMethod("setResult", Object.class);
+                            setRes.setAccessible(true);
+                            setRes.invoke(param, new Object[]{null});
+                        } catch (Throwable e2) {}
                     }
                 }
             }
