@@ -34,6 +34,10 @@ public class XposedHook implements IXposedHookLoadPackage {
 
     @Override
     public void handleLoadPackage(final LoadPackageParam lpparam) throws Throwable {
+        if (lpparam == null || lpparam.packageName == null) {
+            return;
+        }
+
         // Chỉ bọc đuôi cho app FMS Bình Thuận
         if (!lpparam.packageName.equals("com.gfd.fms.binhthuan")) {
             return;
@@ -41,7 +45,7 @@ public class XposedHook implements IXposedHookLoadPackage {
 
         XposedBridge.log("[OmniVCam] Đã nạp Menu nổi lấy ảnh gốc vào FMS!");
 
-        // 🚀 HOOK VÒNG ĐỜI: Tạo nút nổi khi app FMS hiển thị
+        // 🚀 HOOK VÒNG ĐỜI: Tạo nút nổi khi app FMS hiển thị (Sử dụng hàm getter chuẩn)
         XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -56,8 +60,8 @@ public class XposedHook implements IXposedHookLoadPackage {
         XposedHelpers.findAndHookMethod(Activity.class, "onActivityResult", int.class, int.class, Intent.class, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                int requestCode = (int) param.args[0];
-                int resultCode = (int) param.args[1];
+                int requestCode = (Integer) param.args[0];
+                int resultCode = (Integer) param.args[1];
                 Intent data = (Intent) param.args[2];
 
                 if (requestCode == 9999 && resultCode == Activity.RESULT_OK && data != null) {
@@ -86,7 +90,10 @@ public class XposedHook implements IXposedHookLoadPackage {
                     } catch (Exception e) {
                         Toast.makeText(activity, "🔴 Lỗi nạp ảnh gốc: " + e.getMessage(), Toast.LENGTH_LONG).show();
                     }
-                    param.setResult(null);
+                    
+                    // Giải pháp dứt điểm lỗi setResult: Thay thế bằng hàm set dòng chảy chuẩn Object của Xposed
+                    Object nullObj = null;
+                    param.setResult(nullObj);
                 }
             }
         });
