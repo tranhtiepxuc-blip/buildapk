@@ -1,0 +1,22 @@
+// File cấu hình gốc điều phối phiên bản Android Tools toàn hệ thống
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // Cố định phiên bản Android Gradle Plugin tương thích tuyệt đối với máy ảo
+        classpath 'com.android.tools.build:gradle:8.2.2'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
