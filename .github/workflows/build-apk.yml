@@ -19,7 +19,6 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # 🔨 BƯỚC 1: Dịch toàn bộ file Java thành .class
     - name: Compile Java Source to Class
       run: |
         mkdir -p obj
@@ -32,40 +31,34 @@ jobs:
           -d obj \
           @sources.txt
 
-    # 🔨 BƯỚC 2: Ép toàn bộ các file .class thành file classes.dex hoàn chỉnh
     - name: Convert Class to Android Dex
       run: |
         mkdir -p dex_out
         D8_PATH=$(find $ANDROID_HOME/build-tools/ -name "d8" | sort -V | tail -n 1)
+        echo "🟢 Sử dụng công cụ D8: $D8_PATH"
         
-        # 🚀 CẢI TIẾN: Quét gom toàn bộ thư mục obj bao gồm cả cấu trúc Xposed giả lập vào file dex
-        find obj -name "*.class" > class_list.txt
-        $D8_PATH --release --output dex_out @class_list.txt
+        # 🚀 ÉP TIẾN TRÌNH: Gom cả file giao diện chính lẫn file Hook vào ruột APK
+        $D8_PATH --release --output dex_out obj/com/duc/vcam/XposedHook.class obj/com/duc/vcam/MainActivity.class obj/com/duc/vcam/MainActivity\$1.class obj/com/duc/vcam/MainActivity\$2.class
 
-    # 🔨 BƯỚC 3: Liên kết tài nguyên và tạo chứng chỉ ký xịn
     - name: Package Everything to Raw APK
       run: |
         mkdir -p Output
         AAPT2_PATH=$(find $ANDROID_HOME/build-tools/ -name "aapt2" | sort -V | tail -n 1)
         ANDROID_JAR=$(find $ANDROID_HOME/platforms/ -name "android.jar" | sort -V | tail -n 1)
         
-        # Tạo file APK thô chứa Manifest
         $AAPT2_PATH link -o Output/base.apk \
           -I "$ANDROID_JAR" \
           --manifest AndroidManifest.xml \
           --target-sdk-version 34
 
-        # Bơm file thực thi classes.dex vào ruột APK
         cd dex_out
         zip -g ../Output/base.apk classes.dex
         cd ..
 
-        # Tạo file cấu hình assets/xposed_init chuẩn đét cho LSPosed
         mkdir -p assets
         echo "com.duc.vcam.XposedHook" > assets/xposed_init
         zip -g Output/base.apk assets/xposed_init
 
-        # 🚀 TUYỆT CHIÊU QUYẾT ĐỊNH: Tự tạo một kho khóa chứng chỉ (Keystore) chuẩn của Android tại chỗ
         keytool -genkeypair -v \
           -keystore my-release-key.p12 \
           -alias my-alias \
@@ -77,17 +70,13 @@ jobs:
           -keypass duc123456 \
           -dname "CN=duc, OU=omni, O=vcam, L=VN, S=VN, C=VN"
 
-        # Dùng apksigner ký mã nguồn bằng chính chứng chỉ vừa tạo
         APKSIGNER_PATH=$(find $ANDROID_HOME/build-tools/ -name "apksigner" | sort -V | tail -n 1)
         $APKSIGNER_PATH sign --ks my-release-key.p12 --ks-pass pass:duc123456 Output/base.apk
         
-        mv Output/base.apk Output/Omni_VCam_Raw.apk
-        
-        echo "🟢 Kiểm tra dung lượng file APK thành phẩm:"
-        ls -lh Output/Omni_VCam_Raw.apk
+        mv Output/base.apk Output/Omni_VCam_Pro.apk
 
     - name: Upload Finished APK to Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: Omni-VCam-Raw-APK
-        path: Output/Omni_VCam_Raw.apk
+        name: Omni-VCam-Pro-APK
+        path: Output/Omni_VCam_Pro.apk
