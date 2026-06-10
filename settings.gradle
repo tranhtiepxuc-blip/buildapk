@@ -4,13 +4,16 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
     }
+    // 🚀 FIX CHÍ MẠNG: Khai báo tập trung phiên bản Android Build Tools tương thích Gradle 9.x
+    plugins {
+        id 'com.android.application' version '8.2.2'
+    }
 }
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
         mavenCentral()
-        // Kho lưu trữ đặc thù để máy ảo tải thư viện API Xposed bẻ khóa hệ thống
         maven { url 'https://api.涼風.tw/maven' }
     }
 }
