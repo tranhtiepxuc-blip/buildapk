@@ -23,8 +23,9 @@ public class MainActivity extends Activity {
     private static final int PICK_IMAGE = 1;
     private TextView txtStatus;
 
+    // 🚀 ĐÃ FIX CHÍ MẠNG: Đổi tên về hàm onCreate chuẩn của Android Activity
     @Override
-    protected void Bundle_onCreate(Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         LinearLayout layout = new LinearLayout(this);
@@ -66,7 +67,7 @@ public class MainActivity extends Activity {
                     String picturePath = cursor.getString(columnIndex);
                     cursor.close();
 
-                    // 🚀 ĐỘC CHIÊU: Copy đè thẳng tấm ảnh được chọn vào thư mục công cộng Movies
+                    // Copy đè thẳng tấm ảnh được chọn vào thư mục công cộng Movies
                     File src = new File(picturePath);
                     File destDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "");
                     if (!destDir.exists()) destDir.mkdirs();
