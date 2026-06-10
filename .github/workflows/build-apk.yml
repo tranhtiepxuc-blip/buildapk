@@ -22,7 +22,8 @@ jobs:
     - name: Download Xposed API Library
       run: |
         mkdir -p libs
-        wget -U "Mozilla/5.0" -O libs/xposed-api.jar https://repo1.maven.org/maven2/de/robv.android.xposed/api/82/api-82.jar
+        # 🚀 ĐÃ SỬA: Thay đổi sang đường dẫn tải thư viện Xposed API chính thức và cực kỳ ổn định
+        wget -U "Mozilla/5.0" -O libs/xposed-api.jar https://raw.githubusercontent.com/rovo89/XposedBridge/master/jar/XposedBridgeApi-82.jar
 
     - name: Compile Java Source to Class
       run: |
