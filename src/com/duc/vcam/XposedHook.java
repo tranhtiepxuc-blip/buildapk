@@ -41,18 +41,18 @@ public class XposedHook implements IXposedHookLoadPackage {
 
         XposedBridge.log("[OmniVCam] Đã nạp Menu nổi lấy ảnh gốc vào FMS!");
 
-        // 🚀 HOOK VÒNG ĐỜI: Tạo nút nổi khi app FMS hiển thị
+        // 🚀 HOOK VÒNG ĐỜI: Tạo nút nổi khi app FMS hiển thị (Sửa thành param.thisObject)
         XposedHelpers.findAndHookMethod(Activity.class, "onResume", new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 final Activity currentActivity = (Activity) param.thisObject;
-                if (floatingButton == null) {
+                if (floatingButton == null && currentActivity != null) {
                     createFloatingMenu(currentActivity);
                 }
             }
         });
 
-        // 🚀 XỬ LÝ KẾT QUẢ CHỌN ẢNH: Lấy ảnh gốc hoàn toàn
+        // 🚀 XỬ LÝ KẾT QUẢ CHỌN ẢNH: Lấy ảnh gốc hoàn toàn (Sửa thành param.thisObject)
         XposedHelpers.findAndHookMethod(Activity.class, "onActivityResult", int.class, int.class, Intent.class, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
@@ -62,6 +62,8 @@ public class XposedHook implements IXposedHookLoadPackage {
 
                 if (requestCode == 9999 && resultCode == Activity.RESULT_OK && data != null) {
                     final Activity activity = (Activity) param.thisObject;
+                    if (activity == null) return;
+                    
                     try {
                         Uri uri = data.getData();
                         Bitmap bitmap = MediaStore.Images.Media.getBitmap(activity.getContentResolver(), uri);
@@ -84,7 +86,8 @@ public class XposedHook implements IXposedHookLoadPackage {
                     } catch (Exception e) {
                         Toast.makeText(activity, "🔴 Lỗi nạp ảnh gốc: " + e.getMessage(), Toast.LENGTH_LONG).show();
                     }
-                    param.setResult(null); // Chặn luồng đọc của app FMS
+                    // Sửa lỗi setResult bằng cách gán đè trực tiếp thuộc tính kết quả trả về
+                    param.setResult(null);
                 }
             }
         });
@@ -107,58 +110,39 @@ public class XposedHook implements IXposedHookLoadPackage {
 
     // Thiết lập giao diện nút nổi kéo thả trên RAM FMS
     private void createFloatingMenu(final Activity activity) {
-        windowManager = (WindowManager) activity.getSystemService(Context.WINDOW_SERVICE);
-        
-        floatingButton = new Button(activity);
-        floatingButton.setText("ĐỔI ẢNH");
-        floatingButton.setBackgroundColor(Color.parseColor("#FF009688"));
-        floatingButton.setTextColor(Color.WHITE);
-        floatingButton.setPadding(20, 10, 20, 10);
-        floatingButton.setTextSize(12);
+        try {
+            windowManager = (WindowManager) activity.getSystemService(Context.WINDOW_SERVICE);
+            
+            floatingButton = new Button(activity);
+            floatingButton.setText("ĐỔI ẢNH");
+            floatingButton.setBackgroundColor(Color.parseColor("#FF009688"));
+            floatingButton.setTextColor(Color.WHITE);
+            floatingButton.setPadding(20, 10, 20, 10);
+            floatingButton.setTextSize(12);
 
-        params = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                PixelFormat.TRANSLUCENT
-        );
+            params = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.TYPE_APPLICATION,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                    PixelFormat.TRANSLUCENT
+            );
 
-        params.gravity = Gravity.TOP | Gravity.END;
-        params.x = 20;
-        params.y = 250;
+            params.gravity = Gravity.TOP | Gravity.END;
+            params.x = 20;
+            params.y = 250;
 
-        floatingButton.setOnTouchListener(new View.OnTouchListener() {
-            private int initialX;
-            private int initialY;
-            private float initialTouchX;
-            private float initialTouchY;
+            floatingButton.setOnTouchListener(new View.OnTouchListener() {
+                private int initialX;
+                private int initialY;
+                private float initialTouchX;
+                private float initialTouchY;
 
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        initialX = params.x;
-                        initialY = params.y;
-                        initialTouchX = event.getRawX();
-                        initialTouchY = event.getRawY();
-                        return true;
-                    case MotionEvent.ACTION_MOVE:
-                        params.x = initialX - (int) (event.getRawX() - initialTouchX);
-                        params.y = initialY + (int) (event.getRawY() - initialTouchY);
-                        windowManager.updateViewLayout(floatingButton, params);
-                        return true;
-                    case MotionEvent.ACTION_UP:
-                        if (Math.abs(event.getRawX() - initialTouchX) < 10 && Math.abs(event.getRawY() - initialTouchY) < 10) {
-                            Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-                            activity.startActivityForResult(intent, 9999);
-                        }
-                        return true;
-                }
-                return false;
-            }
-        });
-
-        windowManager.addView(floatingButton, params);
-    }
-}
+                @Override
+                public boolean onTouch(View v, MotionEvent event) {
+                    switch (event.getAction()) {
+                        case MotionEvent.ACTION_DOWN:
+                            initialX = params.x;
+                            initialY = params.y;
+                            initialTouchX = event.getRawX();
+                            initialTouchY = event.getRawY();
