@@ -19,17 +19,18 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # 🚀 BƯỚC ĐỘC CHIÊU: Tự tải file thư viện Xposed API dạng sạch về để làm bệ phóng dịch code
+    # 🚀 VÁ LỖI CHÍ MẠNG: Thêm User-Agent giả lập trình duyệt để tải file jar xịn 100%
     - name: Download Xposed API Library
       run: |
         mkdir -p libs
-        curl -L -o libs/xposed-api.jar https://repo1.maven.org/maven2/de/robv/android/xposed/api/82/api-82.jar
+        curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -L -o libs/xposed-api.jar https://repo1.maven.org/maven2/de/robv/android/xposed/api/82/api-82.jar
+        
+        # Kiểm tra nhanh dung lượng file xem có đúng là file jar thật không
+        ls -lh libs/xposed-api.jar
 
-    # 🔨 BƯỚC THỦ CÔNG 1: Dùng trình dịch Java (javac) dịch file XposedHook.java thành file .class
     - name: Compile Java Source to Class
       run: |
         mkdir -p obj
-        # Định vị file android.jar có sẵn trong máy ảo GitHub để liên kết hàm hệ thống
         ANDROID_JAR=$(find $ANDROID_HOME/platforms/ -name "android.jar" | sort -V | tail -n 1)
         echo "🟢 Sử dụng Android SDK Platform: $ANDROID_JAR"
         
@@ -39,7 +40,7 @@ jobs:
           -d obj \
           src/com/duc/vcam/XposedHook.java
 
-    # 🔨 BƯỚC THỦ CÔNG 2: Ép file .class chuyển thành file .dex (Đuôi thực thi của hệ điều hành Android)
+    # Các bước sau giữ nguyên 100%
     - name: Convert Class to Android Dex
       run: |
         mkdir -p dex_out
@@ -48,30 +49,25 @@ jobs:
         
         $D8_PATH --release --output dex_out obj/com/duc/vcam/XposedHook.class
 
-    # 🔨 BƯỚC THỦ CÔNG 3: Dùng công cụ AAPT2 đóng gói file AndroidManifest và file Dex thành APK hoàn chỉnh
     - name: Package Everything to Raw APK
       run: |
         mkdir -p Output
         AAPT2_PATH=$(find $ANDROID_HOME/build-tools/ -name "aapt2" | sort -V | tail -n 1)
         ANDROID_JAR=$(find $ANDROID_HOME/platforms/ -name "android.jar" | sort -V | tail -n 1)
         
-        # Tạo cấu hình file nén sơ bộ
         $AAPT2_PATH link -o Output/base.apk \
           -I "$ANDROID_JAR" \
           --manifest AndroidManifest.xml \
           --target-sdk-version 34
 
-        # Nhét file thực thi dex ngầm vào trong ruột file APK
         cd dex_out
         zip -g ../Output/base.apk classes.dex
         cd ..
 
-        # Tạo file cấu hình nhận diện cho LSPosed (assets/xposed_init) trực tiếp bằng lệnh zip
         mkdir -p assets
         echo "com.duc.vcam.XposedHook" > assets/xposed_init
         zip -g Output/base.apk assets/xposed_init
 
-        # Ký mã nguồn khẩn cấp bằng testkey để Android cho phép cài đặt
         APKSIGNER_PATH=$(find $ANDROID_HOME/build-tools/ -name "apksigner" | sort -V | tail -n 1)
         $APKSIGNER_PATH sign --ks-key-str "MIIBuwIBADANBgkqhkiG9w0BAQEFAASCA00wggNJAgEAAoIBgQC7" Output/base.apk || true
         
