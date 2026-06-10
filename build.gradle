@@ -1,8 +1,0 @@
-plugins {
-    // Khóa cứng phiên bản Android Tools 8.2.2 - Bản sạch lỗi, tương thích tuyệt đối
-    id 'com.android.application' version '8.2.2' apply false
-}
-
-task clean(type: Delete) {
-    delete rootProject.buildDir
-}
