@@ -1,4 +1,6 @@
-apply plugin: 'com.android.application'
+plugins {
+    id 'com.android.application'
+}
 
 android {
     namespace 'com.duc.vcam'
@@ -24,9 +26,8 @@ android {
     }
 }
 
-// Nạp độc lập thư viện API Xposed cho riêng luồng biên dịch class của app
 dependencies {
-    // Ép Gradle nạp trực tiếp file jar từ kho trung tâm mà không cần phân giải qua classpath hệ thống
+    // Nạp thẳng thư viện Xposed API dạng compileOnly gọn nhẹ
     compileOnly 'de.robv.android.xposed:api:82'
     implementation 'androidx.appcompat:appcompat:1.6.1'
 }
