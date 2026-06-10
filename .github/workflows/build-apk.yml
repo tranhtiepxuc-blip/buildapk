@@ -19,32 +19,91 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Download Xposed API Library
+    # 🚀 CHIÊU ĐỘC: Tự tạo cấu trúc lớp Xposed giả lập ngay trên máy ảo để javac nhận diện, KHÔNG CẦN TẢI MẠNG!
+    - name: Create Xposed Stubs
       run: |
-        mkdir -p libs
-        # 🚀 ĐÃ FIX DỨT ĐIỂM LINK MAVEN: Tải trực tiếp chuẩn xác file API 82 không sợ lỗi 404
-        wget -U "Mozilla/5.0" -O libs/xposed-api.jar https://repo.maven.apache.org/maven2/de/robv/android/xposed/api/82/api-82.jar
+        mkdir -p stubs/de/robv/android/xposed/callbacks/XC_LoadPackage
         
-        # In kiểm tra dung lượng để chắc chắn file tải về nguyên vẹn
-        ls -lh libs/xposed-api.jar
+        # 1. Tạo file XC_MethodHook giả lập
+        cat << 'EOF' > stubs/de/robv/android/xposed/XC_MethodHook.java
+        package de.robv.android.xposed;
+        public abstract class XC_MethodHook {
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {}
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {}
+            public static class MethodHookParam {
+                public Object[] args;
+                public Object getResult() { return null; }
+            }
+        }
+        EOF
 
+        # 2. Tạo file IXposedHookLoadPackage giả lập
+        cat << 'EOF' > stubs/de/robv/android/xposed/IXposedHookLoadPackage.java
+        package de.robv.android.xposed;
+        import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
+        public interface IXposedHookLoadPackage {
+            void handleLoadPackage(LoadPackageParam lpparam) throws Throwable;
+        }
+        EOF
+
+        # 3. Tạo file XposedBridge giả lập
+        cat << 'EOF' > stubs/de/robv/android/xposed/XposedBridge.java
+        package de.robv.android.xposed;
+        public class XposedBridge {
+            public static void log(String text) {}
+            public static void log(Throwable t) {}
+        }
+        EOF
+
+        # 4. Tạo file XposedHelpers giả lập
+        cat << 'EOF' > stubs/de/robv/android/xposed/XposedHelpers.java
+        package de.robv.android.xposed;
+        public class XposedHelpers {
+            public static Object findAndHookMethod(Class<?> clazz, String methodName, Object... parameterTypesAndCallback) { return null; }
+            public static Object findAndHookMethod(String className, ClassLoader classLoader, String methodName, Object... parameterTypesAndCallback) { return null; }
+        }
+        EOF
+
+        # 5. Tạo file LoadPackageParam giả lập
+        cat << 'EOF' > stubs/de/robv/android/xposed/callbacks/XC_LoadPackage/LoadPackageParam.java
+        package de.robv.android.xposed.callbacks.XC_LoadPackage;
+        public class LoadPackageParam {
+            public String packageName;
+            public ClassLoader classLoader;
+        }
+        EOF
+
+    # 🔨 BƯỚC 1: Biên dịch chung file code của Đức phối hợp với cấu trúc mồi vừa tạo
     - name: Compile Java Source to Class
       run: |
         mkdir -p obj
         ANDROID_JAR=$(find $ANDROID_HOME/platforms/ -name "android.jar" | sort -V | tail -n 1)
+        echo "🟢 Sử dụng Android SDK Platform: $ANDROID_JAR"
+        
+        # Dịch song song cả file chính và file mồi để javac thông suốt liên kết cấu trúc
         javac -target 1.8 -source 1.8 \
           -bootclasspath "$ANDROID_JAR" \
-          -classpath "libs/xposed-api.jar" \
           -d obj \
-          src/com/duc/vcam/XposedHook.java src/com/duc/vcam/MainActivity.java
+          stubs/de/robv/android/xposed/XC_MethodHook.java \
+          stubs/de/robv/android/xposed/IXposedHookLoadPackage.java \
+          stubs/de/robv/android/xposed/XposedBridge.java \
+          stubs/de/robv/android/xposed/XposedHelpers.java \
+          stubs/de/robv/android/xposed/callbacks/XC_LoadPackage/LoadPackageParam.java \
+          src/com/duc/vcam/XposedHook.java \
+          src/com/duc/vcam/MainActivity.java
 
+    # 🔨 BƯỚC 2: Ép duy nhất toàn bộ class của RIÊNG ĐỨC thành classes.dex (Thanh lọc sạch sẽ file mồi)
     - name: Convert Class to Android Dex
       run: |
         mkdir -p dex_out
         D8_PATH=$(find $ANDROID_HOME/build-tools/ -name "d8" | sort -V | tail -n 1)
+        echo "🟢 Sử dụng công cụ D8: $D8_PATH"
+        
+        # Chỉ quét và ép dịch đúng thư mục com/duc/vcam của bạn, loại bỏ hoàn toàn đống stubs
         find obj/com/duc/vcam -name "*.class" > app_classes.txt
         $D8_PATH --release --output dex_out @app_classes.txt
 
+    # 🔨 BƯỚC 3: Đóng gói và ký chứng chỉ APK
     - name: Package and Sign APK
       run: |
         mkdir -p Output
@@ -60,7 +119,6 @@ jobs:
 
         keytool -genkeypair -v -keystore key.p12 -alias alias -keyalg RSA -keysize 2048 -validity 10000 -storetype PKCS12 -storepass duc123456 -keypass duc123456 -dname "CN=duc"
         APKSIGNER_PATH=$(find $ANDROID_HOME/build-tools/ -name "apksigner" | sort -V | tail -n 1)
-        $AAPT2_PATH link -o Output/base.apk -I "$ANDROID_JAR" --manifest AndroidManifest.xml --target-sdk-version 34
         $APKSIGNER_PATH sign --ks key.p12 --ks-pass pass:duc123456 Output/base.apk
         
         mv Output/base.apk Output/Omni_VCam_Pro.apk
