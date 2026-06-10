@@ -22,8 +22,11 @@ jobs:
     - name: Download Xposed API Library
       run: |
         mkdir -p libs
-        # 🚀 ĐÃ SỬA: Thay đổi sang đường dẫn tải thư viện Xposed API chính thức và cực kỳ ổn định
-        wget -U "Mozilla/5.0" -O libs/xposed-api.jar https://raw.githubusercontent.com/rovo89/XposedBridge/master/jar/XposedBridgeApi-82.jar
+        # 🚀 ĐÃ FIX DỨT ĐIỂM LINK MAVEN: Tải trực tiếp chuẩn xác file API 82 không sợ lỗi 404
+        wget -U "Mozilla/5.0" -O libs/xposed-api.jar https://repo.maven.apache.org/maven2/de/robv/android/xposed/api/82/api-82.jar
+        
+        # In kiểm tra dung lượng để chắc chắn file tải về nguyên vẹn
+        ls -lh libs/xposed-api.jar
 
     - name: Compile Java Source to Class
       run: |
@@ -57,6 +60,7 @@ jobs:
 
         keytool -genkeypair -v -keystore key.p12 -alias alias -keyalg RSA -keysize 2048 -validity 10000 -storetype PKCS12 -storepass duc123456 -keypass duc123456 -dname "CN=duc"
         APKSIGNER_PATH=$(find $ANDROID_HOME/build-tools/ -name "apksigner" | sort -V | tail -n 1)
+        $AAPT2_PATH link -o Output/base.apk -I "$ANDROID_JAR" --manifest AndroidManifest.xml --target-sdk-version 34
         $APKSIGNER_PATH sign --ks key.p12 --ks-pass pass:duc123456 Output/base.apk
         
         mv Output/base.apk Output/Omni_VCam_Pro.apk
