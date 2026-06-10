@@ -32,7 +32,7 @@ public class XposedHook implements IXposedHookLoadPackage {
         // 🔥 ĐÒN CHÍ MẠNG 1: Hook thẳng vào lớp nội bộ của CameraX (Jetpack androidx)
         // =========================================================================
         try {
-            // Sửa lỗi cú pháp: Gọi chính xác lpparam.classLoader chuẩn Android
+            // SỬA LỖI ĐỒNG BỘ: Chuyển chính xác thành lpparam.classLoader (Chữ L viết hoa)
             XposedHelpers.findAndHookMethod("androidx.camera.camera2.internal.Camera2CameraImpl", lpparam.classLoader, 
                 "openCaptureSession", new XC_MethodHook() {
                     @Override
