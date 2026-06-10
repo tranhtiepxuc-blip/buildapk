@@ -1,82 +1,10 @@
-name: Build VCam APK via Raw Command Line
-
-on:
-  push:
-    branches: [ "*" ]
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout Source Code
-      uses: actions/checkout@v4
-
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-
-    - name: Compile Java Source to Class
-      run: |
-        mkdir -p obj
-        ANDROID_JAR=$(find $ANDROID_HOME/platforms/ -name "android.jar" | sort -V | tail -n 1)
-        echo "🟢 Sử dụng Android SDK Platform: $ANDROID_JAR"
-        
-        find src -name "*.java" > sources.txt
-        javac -target 1.8 -source 1.8 \
-          -bootclasspath "$ANDROID_JAR" \
-          -d obj \
-          @sources.txt
-
+# 🔨 BƯỚC 2: Tự động gom sạch toàn bộ class liên quan đến lõi app (Thanh lọc hoàn toàn class giả lập)
     - name: Convert Class to Android Dex
       run: |
         mkdir -p dex_out
         D8_PATH=$(find $ANDROID_HOME/build-tools/ -name "d8" | sort -V | tail -n 1)
         echo "🟢 Sử dụng công cụ D8: $D8_PATH"
         
-        # 🚀 ÉP TIẾN TRÌNH: Gom cả file giao diện chính lẫn file Hook vào ruột APK
-        $D8_PATH --release --output dex_out obj/com/duc/vcam/XposedHook.class obj/com/duc/vcam/MainActivity.class obj/com/duc/vcam/MainActivity\$1.class obj/com/duc/vcam/MainActivity\$2.class
-
-    - name: Package Everything to Raw APK
-      run: |
-        mkdir -p Output
-        AAPT2_PATH=$(find $ANDROID_HOME/build-tools/ -name "aapt2" | sort -V | tail -n 1)
-        ANDROID_JAR=$(find $ANDROID_HOME/platforms/ -name "android.jar" | sort -V | tail -n 1)
-        
-        $AAPT2_PATH link -o Output/base.apk \
-          -I "$ANDROID_JAR" \
-          --manifest AndroidManifest.xml \
-          --target-sdk-version 34
-
-        cd dex_out
-        zip -g ../Output/base.apk classes.dex
-        cd ..
-
-        mkdir -p assets
-        echo "com.duc.vcam.XposedHook" > assets/xposed_init
-        zip -g Output/base.apk assets/xposed_init
-
-        keytool -genkeypair -v \
-          -keystore my-release-key.p12 \
-          -alias my-alias \
-          -keyalg RSA \
-          -keysize 2048 \
-          -validity 10000 \
-          -storetype PKCS12 \
-          -storepass duc123456 \
-          -keypass duc123456 \
-          -dname "CN=duc, OU=omni, O=vcam, L=VN, S=VN, C=VN"
-
-        APKSIGNER_PATH=$(find $ANDROID_HOME/build-tools/ -name "apksigner" | sort -V | tail -n 1)
-        $APKSIGNER_PATH sign --ks my-release-key.p12 --ks-pass pass:duc123456 Output/base.apk
-        
-        mv Output/base.apk Output/Omni_VCam_Pro.apk
-
-    - name: Upload Finished APK to Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: Omni-VCam-Pro-APK
-        path: Output/Omni_VCam_Pro.apk
+        # 🚀 GIẢI PHÁP THÔNG MINH: Tự động quét nhặt mọi file class sinh ra trong thư mục com/duc/vcam
+        find obj/com/duc/vcam -name "*.class" > app_classes.txt
+        $D8_PATH --release --output dex_out @app_classes.txt
