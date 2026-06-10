@@ -5,7 +5,6 @@ pluginManagement {
         gradlePluginPortal()
     }
     plugins {
-        // Cố định bản Android Plugin hoạt động mượt mà, chống tự đột biến cấu trúc
         id 'com.android.application' version '8.2.2'
     }
 }
