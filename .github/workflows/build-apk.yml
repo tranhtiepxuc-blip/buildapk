@@ -19,34 +19,27 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # 🚀 VÁ LỖI CHÍ MẠNG: Thêm User-Agent giả lập trình duyệt để tải file jar xịn 100%
-    - name: Download Xposed API Library
-      run: |
-        mkdir -p libs
-        curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -L -o libs/xposed-api.jar https://repo1.maven.org/maven2/de/robv/android/xposed/api/82/api-82.jar
-        
-        # Kiểm tra nhanh dung lượng file xem có đúng là file jar thật không
-        ls -lh libs/xposed-api.jar
-
+    # 🚀 BIÊN DỊCH SIÊU TỐC: Dịch toàn bộ cây thư mục src bao gồm cả code chính lẫn khung Xposed giả lập
     - name: Compile Java Source to Class
       run: |
         mkdir -p obj
         ANDROID_JAR=$(find $ANDROID_HOME/platforms/ -name "android.jar" | sort -V | tail -n 1)
         echo "🟢 Sử dụng Android SDK Platform: $ANDROID_JAR"
         
+        # Quét và dịch toàn bộ các file .java có trong thư mục src
+        find src -name "*.java" > sources.txt
         javac -target 1.8 -source 1.8 \
           -bootclasspath "$ANDROID_JAR" \
-          -classpath "libs/xposed-api.jar" \
           -d obj \
-          src/com/duc/vcam/XposedHook.java
+          @sources.txt
 
-    # Các bước sau giữ nguyên 100%
     - name: Convert Class to Android Dex
       run: |
         mkdir -p dex_out
         D8_PATH=$(find $ANDROID_HOME/build-tools/ -name "d8" | sort -V | tail -n 1)
         echo "🟢 Sử dụng công cụ D8: $D8_PATH"
         
+        # Ép file code chính com/duc/vcam chuyển thành đuôi thực thi Android
         $D8_PATH --release --output dex_out obj/com/duc/vcam/XposedHook.class
 
     - name: Package Everything to Raw APK
